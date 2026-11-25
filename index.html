@@ -1,0 +1,1403 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>스파크 연구소: 보이지 않는 회로 탈출</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=Orbitron:wght@500;700;900&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-dark: #070b14;
+            --panel-bg: rgba(15, 23, 42, 0.85);
+            --neon-blue: #00f3ff;
+            --neon-yellow: #ffe600;
+            --neon-green: #00ff66;
+            --neon-red: #ff2a55;
+            --neon-purple: #b537f2;
+        }
+
+        body {
+            background-color: var(--bg-dark);
+            color: #e2e8f0;
+            font-family: 'Noto Sans KR', sans-serif;
+            background-image: 
+                radial-gradient(circle at 15% 50%, rgba(0, 243, 255, 0.06) 0%, transparent 40%),
+                radial-gradient(circle at 85% 30%, rgba(181, 55, 242, 0.06) 0%, transparent 40%),
+                linear-gradient(to right, rgba(255,255,255,0.02) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(255,255,255,0.02) 1px, transparent 1px);
+            background-size: 100% 100%, 100% 100%, 32px 32px, 32px 32px;
+            user-select: none;
+            overflow-x: hidden;
+        }
+
+        .font-cyber {
+            font-family: 'Orbitron', 'Noto Sans KR', sans-serif;
+        }
+
+        .cyber-panel {
+            background: var(--panel-bg);
+            border: 1px solid rgba(0, 243, 255, 0.3);
+            box-shadow: 0 0 15px rgba(0, 243, 255, 0.1), inset 0 0 20px rgba(0, 243, 255, 0.05);
+            backdrop-filter: blur(8px);
+        }
+
+        .neon-text-blue { text-shadow: 0 0 8px rgba(0, 243, 255, 0.7); color: var(--neon-blue); }
+        .neon-text-yellow { text-shadow: 0 0 8px rgba(255, 230, 0, 0.7); color: var(--neon-yellow); }
+        .neon-text-green { text-shadow: 0 0 8px rgba(0, 255, 102, 0.7); color: var(--neon-green); }
+        .neon-text-red { text-shadow: 0 0 8px rgba(255, 42, 85, 0.8); color: var(--neon-red); }
+
+        .btn-cyber {
+            background: linear-gradient(135deg, rgba(0, 243, 255, 0.15) 0%, rgba(0, 119, 255, 0.25) 100%);
+            border: 1px solid var(--neon-blue);
+            color: #fff;
+            transition: all 0.2s ease;
+            box-shadow: 0 0 10px rgba(0, 243, 255, 0.2);
+        }
+        .btn-cyber:hover:not(:disabled) {
+            background: rgba(0, 243, 255, 0.3);
+            box-shadow: 0 0 18px rgba(0, 243, 255, 0.6);
+            transform: translateY(-1px);
+        }
+        .btn-cyber:active:not(:disabled) {
+            transform: translateY(1px);
+        }
+        .btn-cyber:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+            border-color: #475569;
+            box-shadow: none;
+        }
+
+        .btn-item-active {
+            background: linear-gradient(135deg, rgba(255, 230, 0, 0.25) 0%, rgba(255, 153, 0, 0.35) 100%);
+            border-color: var(--neon-yellow);
+            box-shadow: 0 0 15px rgba(255, 230, 0, 0.5);
+        }
+
+        /* 격자 타일 스타일 */
+        .grid-cell {
+            aspect-ratio: 1 / 1;
+            background: rgba(10, 16, 29, 0.9);
+            border: 1px solid rgba(51, 65, 85, 0.6);
+            position: relative;
+            transition: all 0.15s ease;
+            cursor: pointer;
+            border-radius: 0.5rem;
+            overflow: hidden;
+        }
+        .grid-cell:hover {
+            border-color: rgba(0, 243, 255, 0.7);
+            background: rgba(20, 32, 56, 0.95);
+        }
+        .grid-cell.wall {
+            background: repeating-linear-gradient(45deg, #0f172a, #0f172a 8px, #1e293b 8px, #1e293b 16px);
+            border-color: #334155;
+            cursor: default;
+        }
+        .grid-cell.selected-slot {
+            border: 2px dashed var(--neon-yellow);
+            box-shadow: inset 0 0 12px rgba(255, 230, 0, 0.3);
+        }
+
+        /* 전류 흐름 애니메이션 */
+        @keyframes pulseFlow {
+            0% { stroke-dashoffset: 24; }
+            100% { stroke-dashoffset: 0; }
+        }
+        .current-flow-line {
+            stroke-dasharray: 6 6;
+            animation: pulseFlow 0.6s linear infinite;
+        }
+
+        /* 화면 흔들림 (과전류 폭발 시) */
+        @keyframes shake {
+            0%, 100% { transform: translate(0, 0); }
+            15% { transform: translate(-8px, 6px); }
+            30% { transform: translate(8px, -6px); }
+            45% { transform: translate(-6px, -6px); }
+            60% { transform: translate(6px, 6px); }
+            75% { transform: translate(-4px, 4px); }
+        }
+        .shake-effect {
+            animation: shake 0.45s cubic-bezier(.36,.07,.19,.97) both;
+        }
+
+        /* 스파크 플래시 */
+        @keyframes sparkFlash {
+            0% { opacity: 0.95; background: rgba(255, 42, 85, 0.45); }
+            100% { opacity: 0; background: transparent; }
+        }
+        .flash-danger {
+            animation: sparkFlash 0.6s ease-out forwards;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between p-2 sm:p-4">
+
+    <!-- 과전류 경고 오버레이 -->
+    <div id="danger-overlay" class="fixed inset-0 pointer-events-none z-40"></div>
+
+    <!-- 상단 HUD: 스테이지 정보, 실시간 계기판, 보유 아이템 -->
+    <header class="w-full max-w-6xl mx-auto cyber-panel rounded-xl p-3 sm:p-4 mb-3">
+        <div class="flex flex-col lg:flex-row justify-between items-center gap-3">
+            
+            <!-- 좌측: 타이틀 및 스테이지 선택 -->
+            <div class="flex items-center gap-3 w-full lg:w-auto justify-between lg:justify-start">
+                <div>
+                    <div class="flex items-center gap-2">
+                        <span class="px-2 py-0.5 text-xs font-bold rounded bg-cyan-950 text-cyan-300 border border-cyan-500/40">중2 과학: 전기와 자기</span>
+                        <span id="sound-toggle" class="cursor-pointer text-xs px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 border border-slate-600" title="소리 켜기/끄기">🔊 효과음 ON</span>
+                    </div>
+                    <h1 class="text-lg sm:text-xl font-black tracking-tight neon-text-blue mt-0.5">⚡ 스파크 연구소: 보이지 않는 회로 탈출</h1>
+                </div>
+
+                <!-- 스테이지 탭 -->
+                <div class="flex gap-1 bg-slate-900/90 p-1 rounded-lg border border-slate-700" id="stage-selector">
+                    <!-- JS로 동적 생성 -->
+                </div>
+            </div>
+
+            <!-- 중앙: 실시간 계기판 (전압 V, 저항 Ω, 전류 A) -->
+            <div class="grid grid-cols-3 gap-2 sm:gap-3 w-full lg:w-auto bg-slate-950/90 p-2 rounded-xl border border-slate-800">
+                <div class="text-center px-2 sm:px-4 py-1 rounded-lg bg-slate-900/80 border border-yellow-500/30">
+                    <div class="text-[11px] text-slate-400 font-medium">전압 (V)</div>
+                    <div id="meter-v" class="font-cyber text-lg sm:text-xl font-bold neon-text-yellow">0.0 V</div>
+                </div>
+                <div class="text-center px-2 sm:px-4 py-1 rounded-lg bg-slate-900/80 border border-purple-500/30">
+                    <div class="text-[11px] text-slate-400 font-medium">총 저항 (R)</div>
+                    <div id="meter-r" class="font-cyber text-lg sm:text-xl font-bold text-purple-400">0.0 Ω</div>
+                </div>
+                <div class="text-center px-2 sm:px-4 py-1 rounded-lg bg-slate-900/80 border border-cyan-500/30">
+                    <div class="text-[11px] text-slate-400 font-medium">전류 (I = V/R)</div>
+                    <div id="meter-i" class="font-cyber text-lg sm:text-xl font-bold neon-text-blue">0.0 A</div>
+                </div>
+            </div>
+
+            <!-- 우측: 특수 연구 아이템 (3종) -->
+            <div class="flex items-center gap-2 w-full lg:w-auto justify-center lg:justify-end">
+                <button id="item-nichrome" onclick="useItem('nichrome')" class="btn-cyber rounded-lg px-2.5 py-1.5 text-xs flex flex-col items-center min-w-[82px]" title="총 저항값을 +0.5Ω 또는 -0.5Ω 미세 조절합니다.">
+                    <span class="text-base">〰️</span>
+                    <span class="font-bold mt-0.5">니크롬선</span>
+                    <span id="nichrome-status" class="text-[10px] text-cyan-300">보정: 0Ω</span>
+                </button>
+                <button id="item-compass" onclick="useItem('compass')" class="btn-cyber rounded-lg px-2.5 py-1.5 text-xs flex flex-col items-center min-w-[82px]" title="전자석과 자석 주변의 자기장(N/S극 및 힘의 방향)을 미리 보여줍니다.">
+                    <span class="text-base">🧭</span>
+                    <span class="font-bold mt-0.5">나침반</span>
+                    <span id="compass-status" class="text-[10px] text-cyan-300">OFF</span>
+                </button>
+                <button id="item-glove" onclick="useItem('glove')" class="btn-cyber rounded-lg px-2.5 py-1.5 text-xs flex flex-col items-center min-w-[82px]" title="과전류 발생 시 퓨즈 단선을 1회 막아줍니다.">
+                    <span class="text-base">🧤</span>
+                    <span class="font-bold mt-0.5">절연 장갑</span>
+                    <span id="glove-status" class="text-[10px] text-emerald-300">1회 보호</span>
+                </button>
+            </div>
+
+        </div>
+    </header>
+
+    <!-- 중앙 메인 영역: 좌측 미션 브리핑 & 인벤토리 / 우측 2D 격자 퍼즐 보드 -->
+    <main class="w-full max-w-6xl mx-auto flex-1 grid grid-cols-1 lg:grid-cols-12 gap-4 items-stretch">
+        
+        <!-- 좌측 패널: 스테이지 목표, 상태 알림, 부품 인벤토리 -->
+        <aside class="lg:col-span-4 cyber-panel rounded-xl p-4 flex flex-col justify-between gap-4">
+            <div>
+                <div class="flex items-center justify-between border-b border-slate-700/80 pb-2 mb-3">
+                    <h2 id="stage-title" class="text-base sm:text-lg font-bold text-cyan-300">STAGE 1. 전류의 기초</h2>
+                    <span id="stage-badge" class="text-xs px-2 py-0.5 rounded-full bg-yellow-500/20 text-yellow-300 border border-yellow-500/40 font-semibold">미션 진행중</span>
+                </div>
+                
+                <p id="stage-desc" class="text-sm text-slate-300 leading-relaxed mb-3">
+                    끊어진 도선 타일을 클릭하여 회전시키세요. 전지에서 나온 전류가 끊김 없이 전구를 거쳐 다시 전지로 돌아오는 닫힌 회로를 만들면 문이 열립니다!
+                </p>
+
+                <!-- 스테이지 조건 박스 -->
+                <div class="bg-slate-900/90 border border-slate-700 rounded-lg p-3 space-y-1.5 text-xs">
+                    <div class="flex justify-between">
+                        <span class="text-slate-400">🎯 탈출 목표:</span>
+                        <span id="goal-text" class="font-bold text-emerald-400">전구 점등 (폐회로 완성)</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-slate-400">⚠️ 한계 허용 전류:</span>
+                        <span id="max-current-text" class="font-bold text-rose-400">최대 3.0 A 이하</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 부품 인벤토리 영역 -->
+            <div class="bg-slate-950/70 border border-slate-800 rounded-xl p-3">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-xs font-bold text-slate-300 uppercase tracking-wider">🧰 연구소 부품 인벤토리</span>
+                    <span class="text-[11px] text-cyan-400">부품 선택 후 빈칸 클릭</span>
+                </div>
+                <div id="inventory-list" class="grid grid-cols-2 gap-2 min-h-[96px]">
+                    <!-- JS로 스테이지별 부품 생성 -->
+                </div>
+            </div>
+
+            <!-- 제어 버튼 (전원 스위치 / 초기화) -->
+            <div class="grid grid-cols-2 gap-2 pt-1">
+                <button id="btn-power" onclick="togglePower()" class="py-2.5 px-3 rounded-xl font-bold text-sm bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-900/40 transition flex items-center justify-center gap-1.5">
+                    <span>⚡</span> <span id="power-btn-text">전원 투입 (스위치 ON)</span>
+                </button>
+                <button onclick="resetStage()" class="py-2.5 px-3 rounded-xl font-bold text-sm bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-600 transition flex items-center justify-center gap-1.5">
+                    <span>🔄</span> <span>회로 초기화</span>
+                </button>
+            </div>
+        </aside>
+
+        <!-- 우측 패널: 2D 탑뷰 격자 퍼즐 맵 -->
+        <section class="lg:col-span-8 cyber-panel rounded-xl p-3 sm:p-5 flex flex-col items-center justify-center relative">
+            
+            <!-- 상단 연구소 보안문 상태 바 -->
+            <div class="w-full max-w-[540px] flex items-center justify-between mb-3 px-3 py-2 rounded-lg bg-slate-900/90 border border-slate-700">
+                <div class="flex items-center gap-2">
+                    <span id="door-icon" class="text-xl">🔒</span>
+                    <div>
+                        <div class="text-xs font-bold text-slate-200">연구소 섹터 격리 방화문</div>
+                        <div id="door-status-text" class="text-[11px] text-rose-400">전력 차단됨 - 회로 연결 필요</div>
+                    </div>
+                </div>
+                <!-- 4단계 전용 전자석 극성 제어 버튼 -->
+                <div id="magnet-controls" class="hidden flex items-center gap-1.5">
+                    <span class="text-[11px] text-slate-400 mr-1">전류 방향:</span>
+                    <button onclick="setCurrentDir(1)" id="dir-fwd" class="px-2 py-1 text-xs rounded bg-cyan-600 text-white font-bold">정방향 (N극)</button>
+                    <button onclick="setCurrentDir(-1)" id="dir-rev" class="px-2 py-1 text-xs rounded bg-slate-800 text-slate-300 border border-slate-600">역방향 (S극)</button>
+                </div>
+            </div>
+
+            <!-- 퍼즐 그리드 컨테이너 -->
+            <div id="puzzle-grid" class="w-full max-w-[540px] grid gap-1.5 sm:gap-2 p-2 sm:p-3 rounded-xl bg-slate-950/90 border-2 border-slate-800 shadow-inner">
+                <!-- JS로 타일 렌더링 -->
+            </div>
+
+            <!-- 실시간 물리 상태 메시지 피드백 배너 -->
+            <div id="status-banner" class="w-full max-w-[540px] mt-3 px-4 py-2 rounded-lg bg-slate-900/95 border border-cyan-500/30 text-xs sm:text-sm text-center text-cyan-200 font-medium">
+                💡 도선 타일을 클릭해 회전시키거나, 부품을 배치한 뒤 [전원 투입]을 눌러보세요!
+            </div>
+
+        </section>
+
+    </main>
+
+    <!-- 하단 조작 가이드 & 중2 과학 원리 힌트창 -->
+    <footer class="w-full max-w-6xl mx-auto cyber-panel rounded-xl p-3 mt-3 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-300">
+        <div class="flex items-center gap-2">
+            <span class="px-2 py-0.5 rounded bg-indigo-950 text-indigo-300 border border-indigo-500/40 font-bold shrink-0">🔬 과학 원리 힌트</span>
+            <p id="science-hint" class="text-slate-300">전류는 (+)극에서 나와 (-)극으로 흐르며, 전선 중간에 끊어진 곳이 없는 '닫힌 회로'가 되어야 전기가 통합니다.</p>
+        </div>
+        <div class="text-[11px] text-slate-400 shrink-0">
+            🖱️ 클릭: 도선 회전 / 부품 배치 &nbsp;|&nbsp; 우클릭: 배치 부품 회수
+        </div>
+    </footer>
+
+    <!-- 스테이지 클리어 '연구원 노트' 모달 팝업 -->
+    <div id="clear-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
+        <div class="cyber-panel max-w-md w-full rounded-2xl p-6 border-2 border-emerald-400 shadow-[0_0_40px_rgba(0,255,102,0.3)] transform transition-all">
+            <div class="flex items-center gap-3 mb-3">
+                <div class="w-12 h-12 rounded-xl bg-emerald-500/20 border border-emerald-400 flex items-center justify-center text-2xl">
+                    🔓
+                </div>
+                <div>
+                    <div class="text-xs font-bold text-emerald-400 tracking-wider uppercase">SECURITY DOOR UNLOCKED</div>
+                    <h3 id="modal-title" class="text-xl font-black text-white">스테이지 클리어!</h3>
+                </div>
+            </div>
+
+            <div class="bg-slate-900/95 border border-cyan-500/40 rounded-xl p-4 mb-5">
+                <div class="flex items-center gap-1.5 text-cyan-300 font-bold text-sm mb-2">
+                    <span>📓</span> <span>연구원 노트: 오늘의 핵심 과학 원리</span>
+                </div>
+                <p id="modal-science-note" class="text-sm text-slate-200 leading-relaxed whitespace-pre-line">
+                    <!-- 과학 원리 2~3줄 요약 -->
+                </p>
+            </div>
+
+            <div class="flex justify-end gap-2">
+                <button id="modal-next-btn" onclick="nextStage()" class="w-full py-3 rounded-xl font-bold text-sm bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 text-slate-950 shadow-lg transition">
+                    다음 연구 구역으로 이동 ➡️
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        /**
+         * ============================================================================
+         * 1. Web Audio API 사운드 합성기 (외부 파일 없이 순수 코드로 효과음 생성)
+         * ============================================================================
+         */
+        class SoundFX {
+            constructor() {
+                this.ctx = null;
+                this.enabled = true;
+            }
+            init() {
+                if (!this.ctx) {
+                    const AudioContext = window.AudioContext || window.webkitAudioContext;
+                    this.ctx = new AudioContext();
+                }
+                if (this.ctx.state === 'suspended') {
+                    this.ctx.resume();
+                }
+            }
+            playRotate() {
+                if (!this.enabled) return;
+                this.init();
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(320, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(600, this.ctx.currentTime + 0.08);
+                gain.gain.setValueAtTime(0.15, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.08);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.08);
+            }
+            playPlace() {
+                if (!this.enabled) return;
+                this.init();
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(480, this.ctx.currentTime);
+                osc.frequency.setValueAtTime(720, this.ctx.currentTime + 0.05);
+                gain.gain.setValueAtTime(0.18, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.12);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.12);
+            }
+            playSpark() {
+                if (!this.enabled) return;
+                this.init();
+                // 화이트 노이즈 + 저주파 경고음으로 스파크 폭발 구현
+                const bufferSize = this.ctx.sampleRate * 0.45;
+                const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+                const data = buffer.getChannelData(0);
+                for (let i = 0; i < bufferSize; i++) {
+                    data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (this.ctx.sampleRate * 0.12));
+                }
+                const noise = this.ctx.createBufferSource();
+                noise.buffer = buffer;
+
+                const filter = this.ctx.createBiquadFilter();
+                filter.type = 'bandpass';
+                filter.frequency.value = 1200;
+
+                const gain = this.ctx.createGain();
+                gain.gain.setValueAtTime(0.45, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.45);
+
+                noise.connect(filter);
+                filter.connect(gain);
+                gain.connect(this.ctx.destination);
+                noise.start();
+
+                // 경고 비프음
+                const osc = this.ctx.createOscillator();
+                const oscGain = this.ctx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(160, this.ctx.currentTime);
+                osc.frequency.linearRampToValueAtTime(90, this.ctx.currentTime + 0.4);
+                oscGain.gain.setValueAtTime(0.25, this.ctx.currentTime);
+                oscGain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.4);
+                osc.connect(oscGain);
+                oscGain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.4);
+            }
+            playPowerOn() {
+                if (!this.enabled) return;
+                this.init();
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(220, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(550, this.ctx.currentTime + 0.25);
+                gain.gain.setValueAtTime(0.2, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.25);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.25);
+            }
+            playClear() {
+                if (!this.enabled) return;
+                this.init();
+                const notes = [523.25, 659.25, 783.99, 1046.50]; // 도 미 솔 도
+                notes.forEach((freq, idx) => {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'triangle';
+                    const startTime = this.ctx.currentTime + idx * 0.09;
+                    osc.frequency.setValueAtTime(freq, startTime);
+                    gain.gain.setValueAtTime(0.22, startTime);
+                    gain.gain.exponentialRampToValueAtTime(0.01, startTime + 0.35);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start(startTime);
+                    osc.stop(startTime + 0.35);
+                });
+            }
+        }
+        const sfx = new SoundFX();
+
+        document.getElementById('sound-toggle').addEventListener('click', (e) => {
+            sfx.enabled = !sfx.enabled;
+            e.target.textContent = sfx.enabled ? '🔊 효과음 ON' : '🔇 효과음 OFF';
+            if (sfx.enabled) sfx.playRotate();
+        });
+
+        /**
+         * ============================================================================
+         * 2. 타일 & 회로 연결 데이터 구조
+         * 방향 인덱스: 0 = 상(N), 1 = 우(E), 2 = 하(S), 3 = 좌(W)
+         * ============================================================================
+         */
+        const BASE_CONNECTIONS = {
+            'straight': [1, 3],       // 좌-우 직선
+            'corner':   [1, 2],       // 우-하 꺾임
+            'tee':      [1, 2, 3],    // T자 분기
+            'cross':    [0, 1, 2, 3], // 십자 교차
+            'battery':  [1, 3],       // 좌(-), 우(+) 전원
+            'bulb':     [1, 3],       // 전구/보안장치
+            'resistor': [1, 3],       // 저항 소자
+            'coil':     [1, 3],       // 전자석 코일
+            'empty':    [],
+            'wall':     [],
+            'slot':     []            // 부품 배치 가능한 빈 소켓
+        };
+
+        // 회전(rot: 0~3, 시계방향 90도씩)을 적용한 실제 연결 방향 반환
+        function getTilePorts(tile) {
+            if (!tile || !BASE_CONNECTIONS[tile.type]) return [];
+            const base = BASE_CONNECTIONS[tile.type];
+            const rot = tile.rot || 0;
+            return base.map(dir => (dir + rot) % 4);
+        }
+
+        const OPPOSITE_DIR = [2, 3, 0, 1];
+        const DIR_OFFSET = [
+            { r: -1, c: 0 }, // 0: 상
+            { r: 0, c: 1 },  // 1: 우
+            { r: 1, c: 0 },  // 2: 하
+            { r: 0, c: -1 }  // 3: 좌
+        ];
+
+        /**
+         * ============================================================================
+         * 3. 4단계 스테이지 구성 데이터 (중2 과학 교육과정 반영)
+         * ============================================================================
+         */
+        const STAGES = [
+            {
+                id: 1,
+                shortName: "1단계",
+                title: "STAGE 1. 전류의 기초 (닫힌 회로)",
+                desc: "연구소 메인 전력이 차단되었습니다. 회전된 도선 타일들을 클릭해 전지(3V)와 보안 전구(1.5Ω)가 끊김 없이 이어지는 하나의 닫힌 회로를 완성하세요.",
+                goalText: "보안 전구 1개 점등 (목표 전류 2.0A)",
+                maxCurrentText: "최대 3.0 A 이하",
+                hint: "전류는 전지의 (+)극에서 나와 도선을 따라 이동한 뒤 (-)극으로 다시 돌아와야 흐릅니다. 모든 도선의 끝을 서로 맞물리게 회전시켜 보세요!",
+                scienceNote: "• 전류는 전하의 흐름으로, 전지의 (+)극에서 나와 (-)극 방향으로 흐릅니다.\n• 회로 중간이 끊어져 있으면(열린 회로) 전류가 흐르지 못하며, 전선과 부품이 하나로 온전히 연결된 '닫힌 회로'가 되어야 전기 기구가 작동합니다.",
+                rows: 5,
+                cols: 5,
+                voltage: 3.0,
+                maxCurrent: 3.0,
+                inventory: [],
+                // 초기 맵 설계 (5x5 외곽 루프)
+                map: [
+                    [ {type:'corner', rot:0, fixed:false}, {type:'straight', rot:1, fixed:false}, {type:'battery', rot:0, fixed:true, val:3}, {type:'straight', rot:1, fixed:false}, {type:'corner', rot:1, fixed:false} ],
+                    [ {type:'straight', rot:0, fixed:false}, {type:'wall'}, {type:'wall'}, {type:'wall'}, {type:'straight', rot:1, fixed:false} ],
+                    [ {type:'straight', rot:1, fixed:false}, {type:'wall'}, {type:'empty'}, {type:'wall'}, {type:'straight', rot:0, fixed:false} ],
+                    [ {type:'straight', rot:0, fixed:false}, {type:'wall'}, {type:'wall'}, {type:'wall'}, {type:'straight', rot:1, fixed:false} ],
+                    [ {type:'corner', rot:2, fixed:false}, {type:'straight', rot:0, fixed:false}, {type:'bulb', rot:0, fixed:true, reqV:3, res:1.5, label:'보안등'}, {type:'straight', rot:1, fixed:false}, {type:'corner', rot:3, fixed:false} ]
+                ]
+            },
+            {
+                id: 2,
+                shortName: "2단계",
+                title: "STAGE 2. 직렬과 병렬 연결",
+                desc: "3V 건전지 1개로 두 개의 보안 잠금장치(각각 정격 전압 3V 필요)를 동시에 작동시켜야 합니다. 인벤토리의 'T자 분기 도선'과 '직선 도선'을 배치하여 병렬 회로를 구성하세요!",
+                goalText: "보안장치 A, B 모두 3V 공급 (병렬 연결)",
+                maxCurrentText: "최대 4.5 A 이하",
+                hint: "두 장치를 한 줄(직렬)로 연결하면 3V 전압이 1.5V씩 나누어 걸려 작동하지 않습니다. T자 도선으로 길을 두 갈래(병렬)로 나누어 각 장치에 3V가 온전히 걸리게 하세요!",
+                scienceNote: "• 직렬연결에서는 각 저항에 걸리는 전압이 나누어지지만, 병렬연결에서는 각 가지에 전원 전압(3V)이 똑같이 걸립니다.\n• 가정의 모든 가전제품이 220V 전압을 동일하게 사용할 수 있는 이유도 바로 병렬연결 덕분입니다.",
+                rows: 5,
+                cols: 6,
+                voltage: 3.0,
+                maxCurrent: 4.5,
+                inventory: [
+                    { id: 'inv_tee1', type: 'tee', name: 'T자 분기선', desc: '회로를 두 갈래로 나눔', count: 2 },
+                    { id: 'inv_str1', type: 'straight', name: '직선 도선', desc: '일직선 연결 도선', count: 2 }
+                ],
+                map: [
+                    [ {type:'corner', rot:1, fixed:true}, {type:'battery', rot:0, fixed:true, val:3}, {type:'slot', id:'s1'}, {type:'straight', rot:0, fixed:true}, {type:'slot', id:'s2'}, {type:'corner', rot:2, fixed:true} ],
+                    [ {type:'straight', rot:1, fixed:true}, {type:'wall'}, {type:'slot', id:'s3'}, {type:'wall'}, {type:'bulb', rot:1, fixed:true, reqV:3, res:1.5, label:'장치B(3V)'}, {type:'straight', rot:1, fixed:true} ],
+                    [ {type:'straight', rot:1, fixed:true}, {type:'wall'}, {type:'bulb', rot:1, fixed:true, reqV:3, res:1.5, label:'장치A(3V)'}, {type:'wall'}, {type:'slot', id:'s4'}, {type:'straight', rot:1, fixed:true} ],
+                    [ {type:'corner', rot:0, fixed:true}, {type:'straight', rot:0, fixed:true}, {type:'tee', rot:2, fixed:false}, {type:'straight', rot:0, fixed:true}, {type:'straight', rot:0, fixed:true}, {type:'corner', rot:3, fixed:true} ],
+                    [ {type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'} ]
+                ]
+            },
+            {
+                id: 3,
+                shortName: "3단계",
+                title: "STAGE 3. 옴의 법칙 (V = I × R)",
+                desc: "6V 고전압 전원 구역입니다. 보안 게이트는 정확히 2.0A의 전류가 흐를 때만 열립니다! 전류가 2.5A를 넘으면 퓨즈가 폭발합니다. 인벤토리의 저항 블록을 조합해 알맞은 총 저항을 만드세요.",
+                goalText: "회로 전류 정확히 2.0 A 달성 (V=6V)",
+                maxCurrentText: "⚠️ 2.5 A 초과 시 퓨즈 폭발!",
+                hint: "옴의 법칙 I = V / R 에 따라, 전압이 6V일 때 전류 2A가 흐르려면 총 저항(R)이 3Ω이 되어야 합니다. 직렬연결된 저항은 서로 더해집니다!",
+                scienceNote: "• 옴의 법칙(I = V / R): 회로에 흐르는 전류의 세기(I)는 전압(V)에 비례하고, 저항(R)에 반비례합니다.\n• 저항을 직렬로 연결하면 길이가 길어지는 효과가 있어 전체 저항이 각 저항의 합만큼 커집니다.",
+                rows: 5,
+                cols: 5,
+                voltage: 6.0,
+                maxCurrent: 2.5,
+                inventory: [
+                    { id: 'inv_r1', type: 'resistor', name: '1Ω 저항기', res: 1.0, desc: '저항 +1.0Ω 추가', count: 1 },
+                    { id: 'inv_r2', type: 'resistor', name: '2Ω 저항기', res: 2.0, desc: '저항 +2.0Ω 추가', count: 1 },
+                    { id: 'inv_r3', type: 'resistor', name: '3Ω 저항기', res: 3.0, desc: '저항 +3.0Ω 추가', count: 1 }
+                ],
+                map: [
+                    [ {type:'corner', rot:1, fixed:true}, {type:'straight', rot:0, fixed:true}, {type:'battery', rot:0, fixed:true, val:6}, {type:'straight', rot:0, fixed:true}, {type:'corner', rot:2, fixed:true} ],
+                    [ {type:'straight', rot:1, fixed:true}, {type:'wall'}, {type:'wall'}, {type:'wall'}, {type:'straight', rot:1, fixed:true} ],
+                    [ {type:'slot', id:'r_slot1'}, {type:'wall'}, {type:'empty'}, {type:'wall'}, {type:'bulb', rot:1, fixed:true, reqI:2.0, res:0, label:'2A 센서'} ],
+                    [ {type:'slot', id:'r_slot2'}, {type:'wall'}, {type:'wall'}, {type:'wall'}, {type:'straight', rot:1, fixed:true} ],
+                    [ {type:'corner', rot:0, fixed:true}, {type:'straight', rot:1, fixed:false}, {type:'straight', rot:0, fixed:true}, {type:'straight', rot:1, fixed:false}, {type:'corner', rot:3, fixed:true} ]
+                ]
+            },
+            {
+                id: 4,
+                shortName: "4단계",
+                title: "STAGE 4. 전자석과 자기장의 힘",
+                desc: "무거운 자성 철제 블록(N극)이 탈출구 스위치를 막고 있습니다! 코일 부품을 배치해 회로를 연결한 뒤, 상단의 [전류 방향] 버튼을 조절해 자기장의 척력(밀어내는 힘)으로 블록을 밀어내세요!",
+                goalText: "전자석 척력으로 철제 블록을 목표 지점으로 이동",
+                maxCurrentText: "최대 4.0 A 이하",
+                hint: "같은 극끼리는 서로 밀어내는 척력이 작용합니다. 코일에 전류를 흘려 철제 블록과 마주 보는 면이 같은 N극이 되도록 전류 방향을 설정해 보세요! (나침반 아이템 활용 추천)",
+                scienceNote: "• 전류가 흐르는 코일 주위에는 막대자석과 같은 자기장이 형성되며, 이를 '전자석'이라고 합니다.\n• 전자석은 전류의 방향을 바꾸면 N극과 S극의 위치가 반대로 바뀌며, 전류의 세기가 셀수록 자기력이 강해집니다.",
+                rows: 5,
+                cols: 6,
+                voltage: 4.0,
+                maxCurrent: 4.0,
+                inventory: [
+                    { id: 'inv_coil', type: 'coil', name: '전자석 코일', res: 2.0, desc: '전류가 흐르면 자석이 됨', count: 1 },
+                    { id: 'inv_cor', type: 'corner', name: '꺾인 도선', desc: '90도 방향 전환 도선', count: 1 }
+                ],
+                map: [
+                    [ {type:'corner', rot:1, fixed:true}, {type:'battery', rot:0, fixed:true, val:4}, {type:'corner', rot:2, fixed:true}, {type:'empty'}, {type:'empty'}, {type:'empty'} ],
+                    [ {type:'straight', rot:1, fixed:true}, {type:'wall'}, {type:'slot', id:'coil_slot'}, {type:'iron_block', id:'block1', pole:'N'}, {type:'target_pad', id:'pad1'}, {type:'wall'} ],
+                    [ {type:'corner', rot:0, fixed:true}, {type:'straight', rot:0, fixed:true}, {type:'slot', id:'cor_slot'}, {type:'empty'}, {type:'empty'}, {type:'empty'} ],
+                    [ {type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'} ],
+                    [ {type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'} ]
+                ]
+            }
+        ];
+
+        /**
+         * ============================================================================
+         * 4. 게임 상태 관리 변수
+         * ============================================================================
+         */
+        let currentStageIdx = 0;
+        let unlockedStage = 1;
+        let gridState = [];
+        let inventoryState = [];
+        let selectedInvId = null;
+        let powerOn = false;
+        let currentDir = 1; // 1: 정방향(N극), -1: 역방향(S극)
+
+        // 특수 아이템 상태
+        let itemsState = {
+            nichromeOffset: 0, // -0.5, 0, +0.5 순환
+            compassActive: false,
+            gloveShields: 1
+        };
+
+        // 실시간 시뮬레이션 결과 저장
+        let simResult = {
+            closed: false,
+            voltage: 0,
+            resistance: 0,
+            current: 0,
+            activeCells: new Set(),
+            bulbStates: {}, // "r,c" -> { lit: boolean, vDrop: number }
+            magnetPole: null // 'N' or 'S'
+        };
+
+        /**
+         * ============================================================================
+         * 5. 초기화 및 스테이지 로드
+         * ============================================================================
+         */
+        function initGame() {
+            renderStageTabs();
+            loadStage(0);
+        }
+
+        function renderStageTabs() {
+            const container = document.getElementById('stage-selector');
+            container.innerHTML = '';
+            STAGES.forEach((st, idx) => {
+                const btn = document.createElement('button');
+                const isCurrent = idx === currentStageIdx;
+                btn.className = `px-2.5 py-1 rounded text-xs font-bold transition ${
+                    isCurrent 
+                    ? 'bg-cyan-500 text-slate-950 shadow-[0_0_10px_rgba(0,243,255,0.6)]' 
+                    : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                }`;
+                btn.textContent = st.shortName;
+                btn.onclick = () => {
+                    sfx.playRotate();
+                    loadStage(idx);
+                };
+                container.appendChild(btn);
+            });
+        }
+
+        function loadStage(idx) {
+            currentStageIdx = idx;
+            const stage = STAGES[idx];
+            powerOn = false;
+            selectedInvId = null;
+            currentDir = 1;
+            itemsState.nichromeOffset = 0;
+            itemsState.gloveShields = 1;
+
+            // 맵 깊은 복사
+            gridState = stage.map.map(row => row.map(cell => ({ ...cell })));
+            // 인벤토리 깊은 복사
+            inventoryState = stage.inventory.map(item => ({ ...item }));
+
+            // UI 텍스트 업데이트
+            document.getElementById('stage-title').textContent = stage.title;
+            document.getElementById('stage-desc').textContent = stage.desc;
+            document.getElementById('goal-text').textContent = stage.goalText;
+            document.getElementById('max-current-text').textContent = stage.maxCurrentText;
+            document.getElementById('science-hint').textContent = stage.hint;
+            document.getElementById('stage-badge').textContent = '미션 진행중';
+            document.getElementById('stage-badge').className = 'text-xs px-2 py-0.5 rounded-full bg-yellow-500/20 text-yellow-300 border border-yellow-500/40 font-semibold';
+
+            // 4단계 전자석 극성 컨트롤러 표시 여부
+            const magCtrl = document.getElementById('magnet-controls');
+            if (stage.id === 4) {
+                magCtrl.classList.remove('hidden');
+                updateCurrentDirUI();
+            } else {
+                magCtrl.classList.add('hidden');
+            }
+
+            updateItemButtonsUI();
+            updatePowerButtonUI();
+            renderStageTabs();
+            renderInventory();
+            evaluateCircuit();
+            renderGrid();
+            setStatusBanner("💡 회로를 구성한 뒤 [전원 투입] 버튼을 눌러 전류를 흐르게 하세요!", "cyan");
+        }
+
+        function resetStage() {
+            sfx.playRotate();
+            loadStage(currentStageIdx);
+        }
+
+        /**
+         * ============================================================================
+         * 6. 인벤토리 및 특수 아이템 로직
+         * ============================================================================
+         */
+        function renderInventory() {
+            const list = document.getElementById('inventory-list');
+            list.innerHTML = '';
+
+            if (inventoryState.length === 0) {
+                list.innerHTML = `<div class="col-span-2 flex items-center justify-center text-xs text-slate-500 py-4 border border-dashed border-slate-800 rounded-lg">이 구역은 추가 부품 없이 기존 도선 회전만으로 해결 가능합니다.</div>`;
+                return;
+            }
+
+            inventoryState.forEach(item => {
+                const isSelected = selectedInvId === item.id;
+                const btn = document.createElement('button');
+                btn.disabled = item.count <= 0 && !isSelected;
+                btn.className = `p-2 rounded-lg border text-left transition flex flex-col justify-between ${
+                    isSelected 
+                    ? 'bg-yellow-500/20 border-yellow-400 shadow-[0_0_12px_rgba(255,230,0,0.3)]' 
+                    : item.count > 0 
+                        ? 'bg-slate-900 border-slate-700 hover:border-cyan-400' 
+                        : 'bg-slate-900/40 border-slate-800 opacity-40 cursor-not-allowed'
+                }`;
+                btn.onclick = () => {
+                    if (item.count <= 0) return;
+                    sfx.playRotate();
+                    selectedInvId = (selectedInvId === item.id) ? null : item.id;
+                    renderInventory();
+                    renderGrid();
+                };
+
+                btn.innerHTML = `
+                    <div class="flex items-center justify-between w-full">
+                        <span class="text-xs font-bold text-slate-100">${item.name}</span>
+                        <span class="text-[11px] px-1.5 py-0.2 rounded bg-cyan-950 text-cyan-300 font-cyber">x${item.count}</span>
+                    </div>
+                    <div class="text-[10px] text-slate-400 mt-1">${item.desc}</div>
+                `;
+                list.appendChild(btn);
+            });
+        }
+
+        function useItem(type) {
+            sfx.playPlace();
+            if (type === 'nichrome') {
+                // 저항 미세 보정: 0 -> +0.5 -> -0.5 -> 0
+                if (itemsState.nichromeOffset === 0) itemsState.nichromeOffset = 0.5;
+                else if (itemsState.nichromeOffset === 0.5) itemsState.nichromeOffset = -0.5;
+                else itemsState.nichromeOffset = 0;
+
+                setStatusBanner(`〰️ 니크롬선 조절: 전체 저항값이 ${itemsState.nichromeOffset >= 0 ? '+' : ''}${itemsState.nichromeOffset}Ω 미세 보정되었습니다.`, "yellow");
+                evaluateCircuit();
+                renderGrid();
+            } else if (type === 'compass') {
+                itemsState.compassActive = !itemsState.compassActive;
+                setStatusBanner(itemsState.compassActive ? "🧭 나침반 활성화: 전자석 및 자석의 N/S극과 자기장 방향을 표시합니다." : "🧭 나침반을 집어넣었습니다.", "cyan");
+                renderGrid();
+            } else if (type === 'glove') {
+                if (itemsState.gloveShields > 0) {
+                    setStatusBanner("🧤 절연 장갑 착용 중: 과전류가 발생해도 1회에 한해 퓨즈 폭발을 방어합니다!", "emerald");
+                } else {
+                    setStatusBanner("🧤 절연 장갑의 내구도가 소진되었습니다. (스테이지 초기화 시 복구)", "rose");
+                }
+            }
+            updateItemButtonsUI();
+        }
+
+        function updateItemButtonsUI() {
+            const nichromeBtn = document.getElementById('item-nichrome');
+            const compassBtn = document.getElementById('item-compass');
+            const gloveBtn = document.getElementById('item-glove');
+
+            document.getElementById('nichrome-status').textContent = `보정: ${itemsState.nichromeOffset >= 0 ? '+' : ''}${itemsState.nichromeOffset}Ω`;
+            nichromeBtn.classList.toggle('btn-item-active', itemsState.nichromeOffset !== 0);
+
+            document.getElementById('compass-status').textContent = itemsState.compassActive ? 'ON (표시중)' : 'OFF';
+            compassBtn.classList.toggle('btn-item-active', itemsState.compassActive);
+
+            document.getElementById('glove-status').textContent = itemsState.gloveShields > 0 ? `${itemsState.gloveShields}회 보호` : '소진됨';
+            gloveBtn.classList.toggle('btn-item-active', itemsState.gloveShields > 0);
+        }
+
+        function setCurrentDir(dir) {
+            sfx.playRotate();
+            currentDir = dir;
+            updateCurrentDirUI();
+            if (powerOn) {
+                evaluateCircuit();
+                renderGrid();
+            }
+        }
+
+        function updateCurrentDirUI() {
+            const fwd = document.getElementById('dir-fwd');
+            const rev = document.getElementById('dir-rev');
+            if (currentDir === 1) {
+                fwd.className = 'px-2 py-1 text-xs rounded bg-rose-600 text-white font-bold shadow';
+                rev.className = 'px-2 py-1 text-xs rounded bg-slate-800 text-slate-300 border border-slate-600';
+            } else {
+                rev.className = 'px-2 py-1 text-xs rounded bg-blue-600 text-white font-bold shadow';
+                fwd.className = 'px-2 py-1 text-xs rounded bg-slate-800 text-slate-300 border border-slate-600';
+            }
+        }
+
+        /**
+         * ============================================================================
+         * 7. 타일 클릭 / 우클릭 상호작용
+         * ============================================================================
+         */
+        function handleCellClick(r, c) {
+            const cell = gridState[r][c];
+            if (!cell || cell.type === 'wall' || cell.type === 'empty' || cell.type === 'iron_block' || cell.type === 'target_pad') return;
+
+            // 1) 빈 소켓(slot)에 인벤토리 부품 배치
+            if (cell.type === 'slot') {
+                if (!selectedInvId) {
+                    setStatusBanner("⚠️ 먼저 좌측 인벤토리에서 배치할 부품을 선택하세요!", "yellow");
+                    return;
+                }
+                const invItem = inventoryState.find(i => i.id === selectedInvId);
+                if (invItem && invItem.count > 0) {
+                    sfx.playPlace();
+                    invItem.count--;
+                    gridState[r][c] = {
+                        type: invItem.type,
+                        rot: 0,
+                        fixed: false,
+                        placedFrom: invItem.id,
+                        res: invItem.res || 0,
+                        label: invItem.name
+                    };
+                    if (invItem.count === 0) selectedInvId = null;
+                    renderInventory();
+                    evaluateCircuit();
+                    renderGrid();
+                }
+                return;
+            }
+
+            // 2) 배치된 부품이거나 회전 가능한 타일인 경우: 회전 (90도 시계방향)
+            if (!cell.fixed) {
+                sfx.playRotate();
+                cell.rot = ((cell.rot || 0) + 1) % 4;
+                evaluateCircuit();
+                renderGrid();
+            } else {
+                setStatusBanner("🔒 고정된 연구소 설비는 회전할 수 없습니다.", "slate");
+            }
+        }
+
+        function handleCellRightClick(e, r, c) {
+            e.preventDefault();
+            const cell = gridState[r][c];
+            if (cell && cell.placedFrom) {
+                sfx.playRotate();
+                const invItem = inventoryState.find(i => i.id === cell.placedFrom);
+                if (invItem) invItem.count++;
+                gridState[r][c] = { type: 'slot' };
+                renderInventory();
+                evaluateCircuit();
+                renderGrid();
+                setStatusBanner("↩️ 배치한 부품을 인벤토리로 회수했습니다.", "cyan");
+            }
+        }
+
+        /**
+         * ============================================================================
+         * 8. 핵심 물리 엔진: 폐회로 탐색 & 실시간 옴의 법칙(V = IR) 계산
+         * ============================================================================
+         */
+        function togglePower() {
+            powerOn = !powerOn;
+            if (powerOn) sfx.playPowerOn();
+            else sfx.playRotate();
+
+            updatePowerButtonUI();
+            evaluateCircuit();
+            renderGrid();
+        }
+
+        function updatePowerButtonUI() {
+            const btn = document.getElementById('btn-power');
+            const txt = document.getElementById('power-btn-text');
+            if (powerOn) {
+                btn.className = 'py-2.5 px-3 rounded-xl font-bold text-sm bg-amber-600 hover:bg-amber-500 text-white shadow-lg shadow-amber-900/40 transition flex items-center justify-center gap-1.5';
+                txt.textContent = '전원 차단 (스위치 OFF)';
+            } else {
+                btn.className = 'py-2.5 px-3 rounded-xl font-bold text-sm bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-900/40 transition flex items-center justify-center gap-1.5';
+                txt.textContent = '전원 투입 (스위치 ON)';
+            }
+        }
+
+        function evaluateCircuit() {
+            const stage = STAGES[currentStageIdx];
+            const rows = stage.rows;
+            const cols = stage.cols;
+
+            // 전지 위치 찾기
+            let batR = -1, batC = -1;
+            for (let r = 0; r < rows; r++) {
+                for (let c = 0; c < cols; c++) {
+                    if (gridState[r][c].type === 'battery') {
+                        batR = r; batC = c;
+                    }
+                }
+            }
+
+            // BFS로 전지 (+)극(우측 포트=1)에서 출발해 (-)극(좌측 포트=3)으로 돌아오는 경로 탐색
+            const batPorts = getTilePorts(gridState[batR][batC]);
+            const plusDir = batPorts[0]; // 기본 1 (우측)
+            const minusDir = batPorts[1]; // 기본 3 (좌측)
+
+            const startR = batR + DIR_OFFSET[plusDir].r;
+            const startC = batC + DIR_OFFSET[plusDir].c;
+
+            let closed = false;
+            let visited = new Set();
+            let activeCells = new Set();
+
+            function isValid(r, c) {
+                return r >= 0 && r < rows && c >= 0 && c < cols;
+            }
+
+            // 시작 셀이 전지 (+)극과 연결되는지 확인
+            if (isValid(startR, startC)) {
+                const startPorts = getTilePorts(gridState[startR][startC]);
+                if (startPorts.includes(OPPOSITE_DIR[plusDir])) {
+                    // DFS/BFS 탐색
+                    let queue = [{ r: startR, c: startC }];
+                    visited.add(`${startR},${startC}`);
+
+                    while (queue.length > 0) {
+                        const curr = queue.shift();
+                        const ports = getTilePorts(gridState[curr.r][curr.c]);
+
+                        for (let dir of ports) {
+                            const nr = curr.r + DIR_OFFSET[dir].r;
+                            const nc = curr.c + DIR_OFFSET[dir].c;
+
+                            // 전지의 (-)극에 도달했는지 확인
+                            if (nr === batR && nc === batC && dir === OPPOSITE_DIR[minusDir]) {
+                                closed = true;
+                            }
+
+                            if (isValid(nr, nc) && !(nr === batR && nc === batC)) {
+                                const nextPorts = getTilePorts(gridState[nr][nc]);
+                                if (nextPorts.includes(OPPOSITE_DIR[dir])) {
+                                    const key = `${nr},${nc}`;
+                                    if (!visited.has(key)) {
+                                        visited.add(key);
+                                        queue.push({ r: nr, c: nc });
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 막다른 길(Dead-end) 제거하여 실제 전류가 흐르는 유효 폐회로 셀만 추출
+            if (closed) {
+                activeCells = new Set(visited);
+                activeCells.add(`${batR},${batC}`);
+                let changed = true;
+                while (changed) {
+                    changed = false;
+                    for (let key of Array.from(activeCells)) {
+                        if (key === `${batR},${batC}`) continue;
+                        const [r, c] = key.split(',').map(Number);
+                        const ports = getTilePorts(gridState[r][c]);
+                        let connectedNeighbors = 0;
+                        for (let dir of ports) {
+                            const nr = r + DIR_OFFSET[dir].r;
+                            const nc = c + DIR_OFFSET[dir].c;
+                            const nKey = `${nr},${nc}`;
+                            if (activeCells.has(nKey)) {
+                                const nPorts = getTilePorts(gridState[nr][nc]);
+                                if (nPorts.includes(OPPOSITE_DIR[dir])) {
+                                    connectedNeighbors++;
+                                }
+                            }
+                        }
+                        if (connectedNeighbors < 2) {
+                            activeCells.delete(key);
+                            changed = true;
+                        }
+                    }
+                }
+                if (activeCells.size <= 2) closed = false;
+            }
+
+            // 저항 및 부하 계산
+            let totalVoltage = stage.voltage;
+            let totalResistance = 0;
+            let activeBulbs = [];
+            let activeCoils = [];
+
+            if (closed) {
+                for (let key of activeCells) {
+                    const [r, c] = key.split(',').map(Number);
+                    const cell = gridState[r][c];
+                    if (cell.type === 'resistor') {
+                        totalResistance += (cell.res || 1.0);
+                    } else if (cell.type === 'bulb') {
+                        activeBulbs.push({ r, c, cell });
+                    } else if (cell.type === 'coil') {
+                        activeCoils.push({ r, c, cell });
+                        totalResistance += (cell.res || 2.0);
+                    }
+                }
+
+                // 스테이지 2 (직렬 vs 병렬 전압 분배 판별)
+                if (stage.id === 2 && activeBulbs.length > 0) {
+                    // 병렬 연결 여부: 유효 회로 내에 T자 분기(tee)가 2개 이상 포함되어 있으면 병렬로 판정
+                    let teeCount = 0;
+                    for (let key of activeCells) {
+                        const [r, c] = key.split(',').map(Number);
+                        if (gridState[r][c].type === 'tee') teeCount++;
+                    }
+                    if (teeCount >= 2 && activeBulbs.length === 2) {
+                        // 병렬 연결: 합성 저항 R = (1.5 * 1.5) / (1.5 + 1.5) = 0.75Ω, 각 전구 전압 = 3V
+                        totalResistance = 0.75;
+                        activeBulbs.forEach(b => b.vDrop = 3.0);
+                    } else {
+                        // 직렬 연결: 저항 합산, 전압 분배 (3V / 개수)
+                        totalResistance = activeBulbs.length * 1.5;
+                        const splitV = totalVoltage / activeBulbs.length;
+                        activeBulbs.forEach(b => b.vDrop = splitV);
+                    }
+                } else {
+                    activeBulbs.forEach(b => {
+                        totalResistance += (b.cell.res || 0);
+                        b.vDrop = totalVoltage;
+                    });
+                }
+
+                // 니크롬선 보정 적용
+                totalResistance = Math.max(0.5, totalResistance + itemsState.nichromeOffset);
+            }
+
+            // 전원이 켜져 있고 폐회로일 때만 실제 전류 흐름
+            const isFlowing = powerOn && closed;
+            const current = isFlowing ? (totalVoltage / totalResistance) : 0;
+
+            simResult = {
+                closed,
+                isFlowing,
+                voltage: powerOn ? totalVoltage : 0,
+                resistance: closed ? totalResistance : 0,
+                current,
+                activeCells: isFlowing ? activeCells : new Set(),
+                activeBulbs,
+                activeCoils
+            };
+
+            updateMetersUI();
+
+            // 전원이 켜졌을 때 물리 이벤트(과전류, 전자석 이동, 클리어 판정) 실행
+            if (powerOn) {
+                checkPhysicsEvents(stage);
+            } else {
+                updateDoorUI(false, "전원 스위치 OFF - 회로 대기중");
+            }
+        }
+
+        function updateMetersUI() {
+            const vEl = document.getElementById('meter-v');
+            const rEl = document.getElementById('meter-r');
+            const iEl = document.getElementById('meter-i');
+
+            vEl.textContent = `${simResult.voltage.toFixed(1)} V`;
+            rEl.textContent = simResult.closed ? `${simResult.resistance.toFixed(1)} Ω` : `∞ Ω`;
+            iEl.textContent = `${simResult.current.toFixed(2)} A`;
+
+            const stage = STAGES[currentStageIdx];
+            if (simResult.current > stage.maxCurrent) {
+                iEl.className = 'font-cyber text-lg sm:text-xl font-bold neon-text-red';
+            } else if (simResult.current > 0) {
+                iEl.className = 'font-cyber text-lg sm:text-xl font-bold neon-text-green';
+            } else {
+                iEl.className = 'font-cyber text-lg sm:text-xl font-bold neon-text-blue';
+            }
+        }
+
+        /**
+         * ============================================================================
+         * 9. 과전류 폭발, 전자석 척력 이동, 스테이지 클리어 판정
+         * ============================================================================
+         */
+        function checkPhysicsEvents(stage) {
+            if (!simResult.closed) {
+                setStatusBanner("⚠️ 회로가 끊어져 있습니다! 전지(+)에서 (-)까지 모든 도선이 연결되어야 합니다.", "yellow");
+                updateDoorUI(false, "회로 단선 - 전류 0.00 A");
+                return;
+            }
+
+            // 1) 과전류 폭발 체크 (위기 요소)
+            if (simResult.current > stage.maxCurrent) {
+                if (itemsState.gloveShields > 0) {
+                    itemsState.gloveShields--;
+                    updateItemButtonsUI();
+                    sfx.playSpark();
+                    triggerDangerFlash();
+                    powerOn = false;
+                    updatePowerButtonUI();
+                    evaluateCircuit();
+                    renderGrid();
+                    setStatusBanner(`🧤 [절연 장갑 발동!] 과전류(${simResult.current.toFixed(2)}A)로 인한 퓨즈 폭발을 1회 방어했습니다! 저항을 늘리세요.`, "yellow");
+                    return;
+                } else {
+                    // 과전류 퓨즈 단선!
+                    sfx.playSpark();
+                    triggerDangerFlash();
+                    document.body.classList.add('shake-effect');
+                    setTimeout(() => document.body.classList.remove('shake-effect'), 500);
+                    
+                    powerOn = false;
+                    updatePowerButtonUI();
+                    setStatusBanner(`💥 [과전류 경고!] 허용 한계(${stage.maxCurrent}A)를 초과한 ${simResult.current.toFixed(2)}A가 흘러 퓨즈가 끊어졌습니다!`, "rose");
+                    updateDoorUI(false, "과전류 퓨즈 차단됨!");
+                    evaluateCircuit();
+                    renderGrid();
+                    return;
+                }
+            }
+
+            // 2) 스테이지별 클리어 조건 검사
+            if (stage.id === 1) {
+                if (simResult.activeBulbs.length >= 1) {
+                    triggerStageClear();
+                }
+            } 
+            else if (stage.id === 2) {
+                const litCount = simResult.activeBulbs.filter(b => b.vDrop >= 3.0).length;
+                if (litCount === 2) {
+                    triggerStageClear();
+                } else if (simResult.activeBulbs.length === 2) {
+                    setStatusBanner("⚡ 두 보안장치가 직렬로 연결되어 전압이 1.5V씩 나뉘었습니다! (필요 전압: 각 3.0V) 병렬로 연결하세요.", "yellow");
+                    updateDoorUI(false, "전압 부족 (1.5V / 3.0V)");
+                } else {
+                    setStatusBanner("⚡ 두 개의 보안장치(A, B)가 모두 회로에 연결되어야 합니다.", "yellow");
+                }
+            } 
+            else if (stage.id === 3) {
+                // 목표 전류 2.0A 일치 여부 확인
+                if (Math.abs(simResult.current - 2.0) < 0.05) {
+                    triggerStageClear();
+                } else {
+                    setStatusBanner(`⚡ 현재 전류는 ${simResult.current.toFixed(2)}A 입니다. 저항을 조합해 정확히 2.00A를 맞추세요!`, "yellow");
+                    updateDoorUI(false, `전류 불일치 (${simResult.current.toFixed(2)}A ≠ 2.00A)`);
+                }
+            } 
+            else if (stage.id === 4) {
+                // 전자석 코일에 전류가 흐를 때 자기력 작용
+                if (simResult.activeCoils.length > 0) {
+                    const magnetPole = currentDir === 1 ? 'N' : 'S';
+                    // 코일 위치(1,2), 철제 블록 초기 위치(1,3), 목표 패드(1,4)
+                    if (magnetPole === 'N') {
+                        // 같은 극(N-N) 척력 -> 블록을 우측 목표 패드로 밀어냄!
+                        if (gridState[1][3].type === 'iron_block') {
+                            gridState[1][3] = { type: 'empty' };
+                            gridState[1][4] = { type: 'iron_block_done', pole: 'N' };
+                            renderGrid();
+                        }
+                        setStatusBanner("🧲 전자석(N극)과 철제 블록(N극) 사이에 척력이 작용해 블록이 목표 지점으로 밀려났습니다!", "emerald");
+                        triggerStageClear();
+                    } else {
+                        setStatusBanner("🧲 전자석이 S극이 되어 철제 블록(N극)을 끌어당깁니다(인력). 전류 방향을 바꿔 척력을 만드세요!", "yellow");
+                        updateDoorUI(false, "인력 발생 - 블록 이동 실패");
+                    }
+                } else {
+                    setStatusBanner("⚡ 코일 부품을 회로에 연결하여 전자석을 작동시키세요!", "yellow");
+                }
+            }
+        }
+
+        function triggerDangerFlash() {
+            const overlay = document.getElementById('danger-overlay');
+            overlay.classList.remove('flash-danger');
+            void overlay.offsetWidth;
+            overlay.classList.add('flash-danger');
+        }
+
+        function updateDoorUI(unlocked, text) {
+            const icon = document.getElementById('door-icon');
+            const statusTxt = document.getElementById('door-status-text');
+            if (unlocked) {
+                icon.textContent = '🔓';
+                statusTxt.textContent = text;
+                statusTxt.className = 'text-[11px] text-emerald-400 font-bold';
+            } else {
+                icon.textContent = '🔒';
+                statusTxt.textContent = text;
+                statusTxt.className = 'text-[11px] text-rose-400';
+            }
+        }
+
+        function triggerStageClear() {
+            const stage = STAGES[currentStageIdx];
+            updateDoorUI(true, "보안 해제 완료! 방화문 개방됨");
+            document.getElementById('stage-badge').textContent = '클리어 완료!';
+            document.getElementById('stage-badge').className = 'text-xs px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-semibold';
+            setStatusBanner(`🎉 ${stage.title} 클리어! 완벽한 회로 설계입니다!`, "emerald");
+
+            sfx.playClear();
+            renderGrid();
+
+            // 0.65초 뒤 연구원 노트 팝업 표시
+            setTimeout(() => {
+                document.getElementById('modal-title').textContent = `${stage.shortName} 클리어!`;
+                document.getElementById('modal-science-note').textContent = stage.scienceNote;
+                const nextBtn = document.getElementById('modal-next-btn');
+                if (currentStageIdx < STAGES.length - 1) {
+                    nextBtn.textContent = '다음 연구 구역으로 이동 ➡️';
+                } else {
+                    nextBtn.textContent = '🏆 전체 연구소 탈출 완료! (1단계부터 다시하기)';
+                }
+                const modal = document.getElementById('clear-modal');
+                modal.classList.remove('hidden');
+                modal.classList.add('flex');
+            }, 650);
+        }
+
+        function nextStage() {
+            const modal = document.getElementById('clear-modal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+
+            if (currentStageIdx < STAGES.length - 1) {
+                loadStage(currentStageIdx + 1);
+            } else {
+                loadStage(0);
+            }
+        }
+
+        function setStatusBanner(msg, color) {
+            const banner = document.getElementById('status-banner');
+            banner.textContent = msg;
+            const colors = {
+                cyan: 'border-cyan-500/40 text-cyan-200',
+                yellow: 'border-yellow-500/50 text-yellow-200 bg-yellow-950/30',
+                rose: 'border-rose-500/60 text-rose-200 bg-rose-950/40',
+                emerald: 'border-emerald-500/60 text-emerald-200 bg-emerald-950/40',
+                slate: 'border-slate-600 text-slate-300'
+            };
+            banner.className = `w-full max-w-[540px] mt-3 px-4 py-2 rounded-lg bg-slate-900/95 border text-xs sm:text-sm text-center font-medium transition-all ${colors[color] || colors.cyan}`;
+        }
+
+        /**
+         * ============================================================================
+         * 10. 2D SVG 타일 그래픽 렌더링 엔진
+         * ============================================================================
+         */
+        function renderGrid() {
+            const stage = STAGES[currentStageIdx];
+            const gridEl = document.getElementById('puzzle-grid');
+            gridEl.style.gridTemplateColumns = `repeat(${stage.cols}, minmax(0, 1fr))`;
+            gridEl.innerHTML = '';
+
+            for (let r = 0; r < stage.rows; r++) {
+                for (let c = 0; c < stage.cols; c++) {
+                    const cell = gridState[r][c];
+                    const cellDiv = document.createElement('div');
+                    const isFlowing = simResult.activeCells.has(`${r},${c}`);
+
+                    let extraClass = '';
+                    if (cell.type === 'wall') extraClass = 'wall';
+                    else if (cell.type === 'slot' && selectedInvId) extraClass = 'selected-slot';
+
+                    cellDiv.className = `grid-cell flex items-center justify-center ${extraClass}`;
+                    cellDiv.onclick = () => handleCellClick(r, c);
+                    cellDiv.oncontextmenu = (e) => handleCellRightClick(e, r, c);
+
+                    cellDiv.innerHTML = getCellSVG(cell, isFlowing, r, c);
+                    gridEl.appendChild(cellDiv);
+                }
+            }
+        }
+
+        function getCellSVG(cell, isFlowing, r, c) {
+            if (!cell || cell.type === 'empty') return '';
+            if (cell.type === 'wall') {
+                return `<span class="text-slate-700 text-xs font-cyber opacity-40">///</span>`;
+            }
+            if (cell.type === 'slot') {
+                return `
+                    <div class="flex flex-col items-center justify-center text-slate-500 pointer-events-none">
+                        <span class="text-lg">+</span>
+                        <span class="text-[9px]">부품 소켓</span>
+                    </div>
+                `;
+            }
+            if (cell.type === 'target_pad') {
+                return `
+                    <div class="w-full h-full border-2 border-dashed border-emerald-500/60 bg-emerald-950/20 flex flex-col items-center justify-center">
+                        <span class="text-xs font-bold text-emerald-400">GOAL</span>
+                        <span class="text-[9px] text-emerald-300/70">압력 패드</span>
+                    </div>
+                `;
+            }
+            if (cell.type === 'iron_block' || cell.type === 'iron_block_done') {
+                const isDone = cell.type === 'iron_block_done';
+                return `
+                    <div class="w-[86%] h-[86%] rounded-lg ${isDone ? 'bg-emerald-900/80 border-2 border-emerald-400' : 'bg-slate-700 border-2 border-slate-400'} flex flex-col items-center justify-center shadow-lg relative">
+                        <span class="text-base">🧲</span>
+                        <span class="text-[10px] font-black text-white">철 블록</span>
+                        <span class="px-1.5 py-0.2 rounded bg-rose-600 text-white text-[9px] font-bold mt-0.5">N극</span>
+                        ${itemsState.compassActive ? `<span class="absolute -left-2 text-xs bg-slate-900 px-1 rounded border border-yellow-400 text-yellow-300">🧭N</span>` : ''}
+                    </div>
+                `;
+            }
+
+            const ports = getTilePorts(cell);
+            const wireColor = isFlowing ? '#00f3ff' : '#475569';
+            const glowFilter = isFlowing ? 'filter: drop-shadow(0 0 6px #00f3ff);' : '';
+
+            // 포트 좌표: 0(상:50,0), 1(우:100,50), 2(하:50,100), 3(좌:0,50)
+            const portCoords = [
+                { x: 50, y: 0 },
+                { x: 100, y: 50 },
+                { x: 50, y: 100 },
+                { x: 0, y: 50 }
+            ];
+
+            let linesSVG = '';
+            ports.forEach(p => {
+                const pt = portCoords[p];
+                linesSVG += `<line x1="50" y1="50" x2="${pt.x}" y2="${pt.y}" stroke="${wireColor}" stroke-width="10" stroke-linecap="round" style="${glowFilter}" />`;
+                if (isFlowing) {
+                    linesSVG += `<line x1="50" y1="50" x2="${pt.x}" y2="${pt.y}" stroke="#ffffff" stroke-width="3" class="current-flow-line" />`;
+                }
+            });
+
+            // 중앙 부품 아이콘 오버레이
+            let centerOverlay = '';
+            if (cell.type === 'battery') {
+                centerOverlay = `
+                    <rect x="20" y="24" width="60" height="52" rx="8" fill="#0f172a" stroke="#ffe600" stroke-width="3"/>
+                    <text x="50" y="47" text-anchor="middle" fill="#ffe600" font-size="14" font-weight="900" font-family="Orbitron">${cell.val}V</text>
+                    <text x="50" y="64" text-anchor="middle" fill="#94a3b8" font-size="10" font-weight="bold">(-)  (+)</text>
+                `;
+            } else if (cell.type === 'bulb') {
+                // 현재 이 전구가 점등 조건을 만족하는지 확인
+                const bulbInfo = simResult.activeBulbs.find(b => b.r === r && b.c === c);
+                const isLit = isFlowing && bulbInfo && (!cell.reqV || bulbInfo.vDrop >= cell.reqV);
+                const bulbFill = isLit ? '#00ff66' : '#1e293b';
+                const bulbStroke = isLit ? '#ffffff' : '#64748b';
+                centerOverlay = `
+                    <circle cx="50" cy="50" r="24" fill="${bulbFill}" stroke="${bulbStroke}" stroke-width="3" style="${isLit ? 'filter: drop-shadow(0 0 12px #00ff66);' : ''}"/>
+                    <text x="50" y="54" text-anchor="middle" fill="${isLit ? '#022c22' : '#cbd5e1'}" font-size="11" font-weight="900">${isLit ? 'ON' : 'OFF'}</text>
+                    <text x="50" y="90" text-anchor="middle" fill="#e2e8f0" font-size="10" font-weight="bold">${cell.label || '전구'}</text>
+                `;
+            } else if (cell.type === 'resistor') {
+                centerOverlay = `
+                    <rect x="22" y="30" width="56" height="40" rx="6" fill="#1e1b4b" stroke="#c084fc" stroke-width="3"/>
+                    <text x="50" y="55" text-anchor="middle" fill="#e9d5ff" font-size="14" font-weight="900" font-family="Orbitron">${cell.res}Ω</text>
+                `;
+            } else if (cell.type === 'coil') {
+                const pole = currentDir === 1 ? 'N' : 'S';
+                const poleColor = pole === 'N' ? '#ff2a55' : '#3b82f6';
+                centerOverlay = `
+                    <rect x="20" y="26" width="60" height="48" rx="8" fill="#172554" stroke="${isFlowing ? poleColor : '#60a5fa'}" stroke-width="3"/>
+                    <text x="50" y="48" text-anchor="middle" fill="#93c5fd" font-size="11" font-weight="bold">전자석</text>
+                    <text x="50" y="65" text-anchor="middle" fill="${isFlowing ? poleColor : '#64748b'}" font-size="13" font-weight="900">${isFlowing ? pole + '극 활성' : '대기중'}</text>
+                `;
+            } else {
+                // 일반 도선 중앙 연결점
+                centerOverlay = `<circle cx="50" cy="50" r="7" fill="${wireColor}" />`;
+            }
+
+            // 회전 가능 표시 (고정되지 않은 타일)
+            const rotateBadge = (!cell.fixed && cell.type !== 'coil' && cell.type !== 'resistor') 
+                ? `<circle cx="84" cy="16" r="6" fill="rgba(0,243,255,0.25)" /><text x="84" y="19" text-anchor="middle" fill="#00f3ff" font-size="9">↻</text>` 
+                : '';
+
+            // 나침반 아이템 활성화 시 전자석 극성 미리보기 표시
+            let compassBadge = '';
+            if (itemsState.compassActive && cell.type === 'coil') {
+                const previewPole = currentDir === 1 ? 'N극→' : 'S극→';
+                compassBadge = `<rect x="52" y="2" width="46" height="18" rx="4" fill="#fef08a"/><text x="75" y="14" text-anchor="middle" fill="#0f172a" font-size="10" font-weight="900">🧭${previewPole}</text>`;
+            }
+
+            return `
+                <svg viewBox="0 0 100 100" class="w-full h-full pointer-events-none">
+                    ${linesSVG}
+                    ${centerOverlay}
+                    ${rotateBadge}
+                    ${compassBadge}
+                </svg>
+            `;
+        }
+
+        // 게임 시작
+        window.onload = initGame;
+    </script>
+</body>
+</html>
